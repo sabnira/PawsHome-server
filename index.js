@@ -3,7 +3,9 @@ const { MongoClient, ServerApiVersion } = require('mongodb');
 const express = require('express');
 const app = express()
 const cors = require('cors')
+const jwt = require('jsonwebtoken');
 const port = process.env.PORT || 5000
+
 
 
 //middleware
@@ -29,9 +31,43 @@ async function run() {
         // await client.connect();
 
         const userCollection = client.db("pawsHomeDb").collection("users")
+        const petCollection = client.db("pawsHomeDb").collection("pets")
+
+
+        //jwt related api
+        app.post('/jwt', async (req, res) => {
+            const user = req.body
+            // create token
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '365d' })
+
+            res.send({ token })
+        })
+
+
+        // verifyToken middlewares
+        const verifyToken = (req, res, next) => {
+            console.log('inside verify token', req.headers.authorization);
+
+            if (!req.headers.authorization) {
+                return res.status(401).send({ message: 'unauthorized access' })
+            }
+
+            const token = req.headers.authorization.split(' ')[1];
+
+            jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+                if (err) {
+                    return res.status(401).send({ message: 'unauthorized access' })
+                }
+                req.decoded = decoded;
+                next()
+            })
+
+        }
+
+
 
         //users related api
-        app.get('/users', async (req, res) => {
+        app.get('/users', verifyToken, async (req, res) => {
             console.log(req.headers);
             const result = await userCollection.find().toArray();
             res.send(result)
@@ -46,6 +82,13 @@ async function run() {
                 return res.send({ message: 'user already exists', insertedId: null })
             }
             const result = await userCollection.insertOne(user);
+            res.send(result)
+        })
+
+
+        //pet related apis
+        app.get('/pets', async (req, res) => {
+            const result = await petCollection.find().toArray();
             res.send(result)
         })
 
