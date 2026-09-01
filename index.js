@@ -86,10 +86,25 @@ async function run() {
         })
 
 
-        //pet related apis
+        //get all pets data from db
         app.get('/pets', async (req, res) => {
             const result = await petCollection.find().toArray();
             res.send(result)
+        })
+
+        //get a single pet data by id from db
+        app.get('/pets/:id', async (req, res) => {
+            try {
+                const id = req.params.id
+                const query = { _id: new ObjectId(id) }
+                const result = await petsCollection.findOne(query)
+
+                if (!result) return res.status(404).send({ message: 'Pet not found' })
+                res.send(result)
+            
+            } catch (err) {
+                res.status(400).send({ message: 'Invalid pet id' })
+            }
         })
 
 
