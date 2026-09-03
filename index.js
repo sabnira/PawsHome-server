@@ -1,5 +1,5 @@
 require('dotenv').config()
-const { MongoClient, ServerApiVersion } = require('mongodb');
+const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const express = require('express');
 const app = express()
 const cors = require('cors')
@@ -32,7 +32,7 @@ async function run() {
 
         const userCollection = client.db("pawsHomeDb").collection("users")
         const petCollection = client.db("pawsHomeDb").collection("pets")
-
+        const adoptionCollection = client.db("pawsHomeDb").collection("adoptions");
 
         //jwt related api
         app.post('/jwt', async (req, res) => {
@@ -93,19 +93,41 @@ async function run() {
         })
 
         //get a single pet data by id from db
-        app.get('/pets/:id', async (req, res) => {
+        app.get('/pet/:id', async (req, res) => {
             try {
                 const id = req.params.id
                 const query = { _id: new ObjectId(id) }
-                const result = await petsCollection.findOne(query)
+                const result = await petCollection.findOne(query)
 
                 if (!result) return res.status(404).send({ message: 'Pet not found' })
                 res.send(result)
-            
+
             } catch (err) {
                 res.status(400).send({ message: 'Invalid pet id' })
             }
         })
+
+        //pet adoption form
+        app.post("/adoptions", async (req, res) => {
+            try {
+                const adoptionData = req.body;
+
+                const result = await adoptionCollection.insertOne(adoptionData);
+
+                res.status(201).send({
+                    success: true,
+                    message: "Adoption request submitted successfully",
+                    result,
+                });
+            } catch (error) {
+                console.error(error);
+
+                res.status(500).send({
+                    success: false,
+                    message: "Failed to submit adoption request",
+                });
+            }
+        });
 
 
 
