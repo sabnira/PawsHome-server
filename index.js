@@ -86,11 +86,29 @@ async function run() {
         })
 
 
-        //get all pets data from db
+    
+        //get all pets data from db and search and category
         app.get('/pets', async (req, res) => {
-            const result = await petCollection.find().toArray();
-            res.send(result)
-        })
+
+            const { searchParams, category } = req.query;
+
+            let option = {};
+
+            if (searchParams) {
+                option.name = {
+                    $regex: searchParams,
+                    $options: "i"
+                };
+            }
+
+            if (category) {
+                option.category = category;
+            }
+
+            const result = await petCollection.find(option).toArray();
+
+            res.send(result);
+        });
 
         //get a single pet data by id from db
         app.get('/pet/:id', async (req, res) => {
@@ -128,7 +146,6 @@ async function run() {
                 });
             }
         });
-
 
 
 
