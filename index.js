@@ -33,6 +33,7 @@ async function run() {
         const userCollection = client.db("pawsHomeDb").collection("users")
         const petCollection = client.db("pawsHomeDb").collection("pets")
         const adoptionCollection = client.db("pawsHomeDb").collection("adoptions");
+        const donationPetsCollection = client.db("pawsHomeDb").collection("donationPets");
 
         //jwt related api
         app.post('/jwt', async (req, res) => {
@@ -73,6 +74,7 @@ async function run() {
             res.send(result)
         })
 
+
         app.post('/users', async (req, res) => {
             const user = req.body;
             //insert email if user does'nt exists
@@ -84,7 +86,6 @@ async function run() {
             const result = await userCollection.insertOne(user);
             res.send(result)
         })
-
 
     
         //get all pets data from db and search and category
@@ -110,6 +111,7 @@ async function run() {
             res.send(result);
         });
 
+
         //get a single pet data by id from db
         app.get('/pet/:id', async (req, res) => {
             try {
@@ -124,6 +126,7 @@ async function run() {
                 res.status(400).send({ message: 'Invalid pet id' })
             }
         })
+
 
         //pet adoption form
         app.post("/adoptions", async (req, res) => {
@@ -145,6 +148,15 @@ async function run() {
                     message: "Failed to submit adoption request",
                 });
             }
+        });
+
+
+        //get all donation pets data from db
+        app.get('/donationPets', async (req, res) => {
+
+            const result = await donationPetsCollection.find().toArray();
+
+            res.send(result);
         });
 
 
