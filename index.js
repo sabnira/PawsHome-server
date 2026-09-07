@@ -87,7 +87,7 @@ async function run() {
             res.send(result)
         })
 
-    
+
         //get all pets data from db and search and category
         app.get('/pets', async (req, res) => {
 
@@ -158,6 +158,21 @@ async function run() {
 
             res.send(result);
         });
+
+        //get a single donation pet data by id from db
+        app.get('/donationPet/:id', async (req, res) => {
+            try {
+                const id = req.params.id
+                const query = { _id: new ObjectId(id) }
+                const result = await donationPetsCollection.findOne(query)
+
+                if (!result) return res.status(404).send({ message: 'Pet not found' })
+                res.send(result)
+
+            } catch (err) {
+                res.status(400).send({ message: 'Invalid pet id' })
+            }
+        })
 
 
 
