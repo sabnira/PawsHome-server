@@ -4,6 +4,7 @@ const express = require('express');
 const app = express()
 const cors = require('cors')
 const jwt = require('jsonwebtoken');
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY)
 const port = process.env.PORT || 5000
 
 
@@ -34,6 +35,7 @@ async function run() {
         const petCollection = client.db("pawsHomeDb").collection("pets")
         const adoptionCollection = client.db("pawsHomeDb").collection("adoptions");
         const donationPetsCollection = client.db("pawsHomeDb").collection("donationPets");
+        const donationCollection = client.db("pawsHomeDb").collection("donations");
 
         //jwt related api
         app.post('/jwt', async (req, res) => {
@@ -173,6 +175,67 @@ async function run() {
                 res.status(400).send({ message: 'Invalid pet id' })
             }
         })
+
+
+        app.post("/create-payment-intent", async (req, res) => {
+            try {
+                const { amount } = req.body;
+
+                const paymentIntent = await stripe.paymentIntents.create({
+                    amount: Math.round(amount * 100),
+                    currency: "usd",
+                    payment_method_types: ["card"],
+                });
+
+                res.send({
+                    clientSecret: paymentIntent.client_secret,
+                });
+
+            } catch (error) {
+                console.error(error);
+
+                res.status(500).send({
+                    message: "Failed to create payment intent",
+                });
+            }
+        });
+
+        app.post("/donations", async (req, res) => {
+            try {
+                const donation = req.body;
+
+                const result = await donationCollection.insertOne({
+                    campaignId: new ObjectId(donation.campaignId),
+                    petName: donation.petName,
+                    amount: donation.amount,
+                    transactionId: donation.transactionId,
+                    donatedAt: new Date(),
+                });
+
+                // Update campaign donatedAmount
+                await petCollection.updateOne(
+                    {
+                        _id: new ObjectId(donation.campaignId),
+                    },
+                    {
+                        $inc: {
+                            donatedAmount: donation.amount,
+                        },
+                    }
+                );
+
+                res.send(result);
+
+            } catch (error) {
+                console.error(error);
+
+                res.status(500).send({
+                    message: "Failed to save donation",
+                });
+            }
+        });
+
+       
 
 
 
