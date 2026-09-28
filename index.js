@@ -113,6 +113,27 @@ async function run() {
             res.send(result);
         });
 
+        // Add a new pet
+        app.post('/pets', async (req, res) => {
+            try {
+                const pet = req.body;
+
+                const result = await petCollection.insertOne(pet);
+
+                res.send({
+                    success: true,
+                    insertedId: result.insertedId,
+                });
+            } catch (error) {
+                console.error("Error adding pet:", error);
+
+                res.status(500).send({
+                    success: false,
+                    message: "Failed to add pet",
+                });
+            }
+        });
+
 
         //get a single pet data by id from db
         app.get('/pet/:id', async (req, res) => {
@@ -235,7 +256,21 @@ async function run() {
             }
         });
 
-       
+        // app.get("/donations/:campaignId", async (req, res) => {
+
+        //     const campaignId = req.params.campaignId;
+
+        //     const result = await donationCollection
+        //         .find({
+        //             campaignId: new ObjectId(campaignId),
+        //         })
+        //         .sort({
+        //             donatedAt: -1,
+        //         })
+        //         .toArray();
+
+        //     res.send(result);
+        // });
 
 
 
