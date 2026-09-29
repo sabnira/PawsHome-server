@@ -200,6 +200,26 @@ async function run() {
         });
 
 
+        // Delete a pet
+        app.delete('/pets/:id', async (req, res) => {
+            try {
+                const id = req.params.id;
+
+                const result = await petCollection.deleteOne({
+                    _id: new ObjectId(id)
+                });
+
+                res.send(result);
+            } catch (error) {
+                console.error("Error deleting pet:", error);
+
+                res.status(500).send({
+                    message: "Failed to delete pet"
+                });
+            }
+        });
+
+
         //pet adoption form
         app.post("/adoptions", async (req, res) => {
             try {
