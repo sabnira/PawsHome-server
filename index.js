@@ -150,6 +150,55 @@ async function run() {
             }
         })
 
+        // Get pets added by a specific user
+        app.get('/my-pets', async (req, res) => {
+            try {
+                const email = req.query.email;
+
+                if (!email) {
+                    return res.status(400).send({
+                        message: "Email is required"
+                    });
+                }
+
+                const result = await petCollection
+                    .find({ ownerEmail: email })
+                    .toArray();
+
+                res.send(result);
+            } catch (error) {
+                console.error("Error getting user's pets:", error);
+
+                res.status(500).send({
+                    message: "Failed to get your pets"
+                });
+            }
+        });
+
+        // Mark a pet as adopted
+        app.patch('/pets/:id/adopted', async (req, res) => {
+            try {
+                const id = req.params.id;
+
+                const result = await petCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    {
+                        $set: {
+                            adopted: true
+                        }
+                    }
+                );
+
+                res.send(result);
+            } catch (error) {
+                console.error("Error marking pet as adopted:", error);
+
+                res.status(500).send({
+                    message: "Failed to update adoption status"
+                });
+            }
+        });
+
 
         //pet adoption form
         app.post("/adoptions", async (req, res) => {
