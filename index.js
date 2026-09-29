@@ -219,6 +219,49 @@ async function run() {
             }
         });
 
+        app.patch('/pets/:id', async (req, res) => {
+    try {
+        const id = req.params.id;
+        const updatedPet = req.body;
+
+        const petData = {
+            image: updatedPet.image,
+            name: updatedPet.name,
+            age: updatedPet.age,
+            location: updatedPet.location,
+            price: Number(updatedPet.price),
+            gender: updatedPet.gender,
+            category: updatedPet.category,
+        };
+
+        const result = await petCollection.updateOne(
+            { _id: new ObjectId(id) },
+            {
+                $set: petData,
+            }
+        );
+
+        if (result.matchedCount === 0) {
+            return res.status(404).send({
+                success: false,
+                message: "Pet not found",
+            });
+        }
+
+        res.send({
+            success: true,
+            modifiedCount: result.modifiedCount,
+        });
+    } catch (error) {
+        console.error("Error updating pet:", error);
+
+        res.status(500).send({
+            success: false,
+            message: "Failed to update pet",
+        });
+    }
+});
+
 
         //pet adoption form
         app.post("/adoptions", async (req, res) => {
