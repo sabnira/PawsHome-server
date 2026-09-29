@@ -364,6 +364,42 @@ async function run() {
             }
         });
 
+        //adoption requests reject from pending
+        app.patch('/adoption-requests/:id/reject', async (req, res) => {
+            try {
+                const id = req.params.id;
+
+                const result = await adoptionCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    {
+                        $set: {
+                            status: "rejected"
+                        }
+                    }
+                );
+
+                if (result.matchedCount === 0) {
+                    return res.status(404).send({
+                        success: false,
+                        message: "Adoption request not found"
+                    });
+                }
+
+                res.send({
+                    success: true,
+                    modifiedCount: result.modifiedCount
+                });
+
+            } catch (error) {
+                console.error("Error rejecting adoption request:", error);
+
+                res.status(500).send({
+                    success: false,
+                    message: "Failed to reject adoption request"
+                });
+            }
+        });
+
 
         //get all donation pets data from db
         app.get('/donationPets', async (req, res) => {
