@@ -220,47 +220,47 @@ async function run() {
         });
 
         app.patch('/pets/:id', async (req, res) => {
-    try {
-        const id = req.params.id;
-        const updatedPet = req.body;
+            try {
+                const id = req.params.id;
+                const updatedPet = req.body;
 
-        const petData = {
-            image: updatedPet.image,
-            name: updatedPet.name,
-            age: updatedPet.age,
-            location: updatedPet.location,
-            price: Number(updatedPet.price),
-            gender: updatedPet.gender,
-            category: updatedPet.category,
-        };
+                const petData = {
+                    image: updatedPet.image,
+                    name: updatedPet.name,
+                    age: updatedPet.age,
+                    location: updatedPet.location,
+                    price: Number(updatedPet.price),
+                    gender: updatedPet.gender,
+                    category: updatedPet.category,
+                };
 
-        const result = await petCollection.updateOne(
-            { _id: new ObjectId(id) },
-            {
-                $set: petData,
+                const result = await petCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    {
+                        $set: petData,
+                    }
+                );
+
+                if (result.matchedCount === 0) {
+                    return res.status(404).send({
+                        success: false,
+                        message: "Pet not found",
+                    });
+                }
+
+                res.send({
+                    success: true,
+                    modifiedCount: result.modifiedCount,
+                });
+            } catch (error) {
+                console.error("Error updating pet:", error);
+
+                res.status(500).send({
+                    success: false,
+                    message: "Failed to update pet",
+                });
             }
-        );
-
-        if (result.matchedCount === 0) {
-            return res.status(404).send({
-                success: false,
-                message: "Pet not found",
-            });
-        }
-
-        res.send({
-            success: true,
-            modifiedCount: result.modifiedCount,
         });
-    } catch (error) {
-        console.error("Error updating pet:", error);
-
-        res.status(500).send({
-            success: false,
-            message: "Failed to update pet",
-        });
-    }
-});
 
 
         //pet adoption form
@@ -281,6 +281,49 @@ async function run() {
                 res.status(500).send({
                     success: false,
                     message: "Failed to submit adoption request",
+                });
+            }
+        });
+
+
+        app.get('/my-adoption-requests', async (req, res) => {
+            try {
+                const ownerEmail = req.query.email;
+
+                if (!ownerEmail) {
+                    return res.status(400).send({
+                        message: "Owner email is required"
+                    });
+                }
+
+                // Find all pets added by the current user
+                const pets = await petCollection
+                    .find({ ownerEmail })
+                    .project({ _id: 1 })
+                    .toArray();
+
+                // Convert ObjectId to string because adoption petId is a string
+                const petIds = pets.map(pet => pet._id.toString());
+
+                if (petIds.length === 0) {
+                    return res.send([]);
+                }
+
+                // Find adoption requests for those pets
+                const requests = await adoptionCollection
+                    .find({
+                        petId: { $in: petIds }
+                    })
+                    .sort({ createdAt: -1 })
+                    .toArray();
+
+                res.send(requests);
+
+            } catch (error) {
+                console.error("Error getting adoption requests:", error);
+
+                res.status(500).send({
+                    message: "Failed to get adoption requests"
                 });
             }
         });
