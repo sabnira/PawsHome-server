@@ -600,6 +600,20 @@ async function run() {
             res.send(result);
         });
 
+        //show all pets admin
+        app.patch('/pets/:id/adopted', verifyToken, async (req, res) => {
+            try {
+                const adopted = req.body?.adopted !== false;
+                const result = await petCollection.updateOne(
+                    { _id: new ObjectId(req.params.id) },
+                    { $set: { adopted } }
+                );
+                res.send(result);
+            } catch (error) {
+                res.status(500).send({ message: "Failed to update adoption status" });
+            }
+        });
+
         // app.get("/donations/:campaignId", async (req, res) => {
 
         //     const campaignId = req.params.campaignId;
