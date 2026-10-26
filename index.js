@@ -47,10 +47,9 @@ async function run() {
         })
 
 
-        // verifyToken middlewares
-        const verifyToken = (req, res, next) => {
-            console.log('inside verify token', req.headers.authorization);
+        // ---------------- middlewares ----------------
 
+        const verifyToken = (req, res, next) => {
             if (!req.headers.authorization) {
                 return res.status(401).send({ message: 'unauthorized access' })
             }
@@ -64,18 +63,38 @@ async function run() {
                 req.decoded = decoded;
                 next()
             })
+        }
 
+        // must be used after verifyToken
+        const verifyAdmin = async (req, res, next) => {
+            try {
+                const user = await userCollection.findOne({ email: req.decoded.email });
+                if (user?.role !== 'admin') {
+                    return res.status(403).send({ message: 'forbidden access' });
+                }
+                next();
+            } catch (error) {
+                res.status(500).send({ message: 'Failed to verify admin' });
+            }
         }
 
 
+        // ---------------- users ----------------
 
-        //users related api
-        app.get('/users', verifyToken, async (req, res) => {
-            console.log(req.headers);
+        // all users (admin only)
+        app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
             const result = await userCollection.find().toArray();
             res.send(result)
         })
 
+        // is the logged-in user an admin? (used by useAdmin)
+        app.get('/users/admin/:email', verifyToken, async (req, res) => {
+            if (req.params.email !== req.decoded.email) {
+                return res.status(403).send({ message: 'forbidden access' });
+            }
+            const user = await userCollection.findOne({ email: req.params.email });
+            res.send({ admin: user?.role === 'admin' });
+        })
 
         app.post('/users', async (req, res) => {
             const user = req.body;
@@ -85,10 +104,37 @@ async function run() {
             if (existingUser) {
                 return res.send({ message: 'user already exists', insertedId: null })
             }
-            const result = await userCollection.insertOne(user);
+            // role is always forced to "user" so nobody can register as admin
+            const result = await userCollection.insertOne({ ...user, role: 'user' });
             res.send(result)
         })
 
+        // make / remove admin (admin only)
+        app.patch('/users/:id/role', verifyToken, verifyAdmin, async (req, res) => {
+            try {
+                const { role } = req.body;
+                if (!['admin', 'user'].includes(role)) {
+                    return res.status(400).send({ message: 'Invalid role' });
+                }
+
+                const target = await userCollection.findOne({ _id: new ObjectId(req.params.id) });
+                if (!target) return res.status(404).send({ message: 'User not found' });
+                if (target.email === req.decoded.email) {
+                    return res.status(400).send({ message: "You can't change your own role" });
+                }
+
+                const result = await userCollection.updateOne(
+                    { _id: target._id },
+                    { $set: { role } }
+                );
+                res.send(result);
+            } catch (error) {
+                res.status(400).send({ message: 'Invalid request' });
+            }
+        })
+
+
+        // ---------------- pets ----------------
 
         //get all pets data from db and search and category
         app.get('/pets', async (req, res) => {
@@ -175,27 +221,18 @@ async function run() {
             }
         });
 
-        // Mark a pet as adopted
-        app.patch('/pets/:id/adopted', async (req, res) => {
+        // Mark a pet as adopted / available (body: { adopted: true | false })
+        app.patch('/pets/:id/adopted', verifyToken, async (req, res) => {
             try {
-                const id = req.params.id;
-
+                const adopted = req.body?.adopted !== false;
                 const result = await petCollection.updateOne(
-                    { _id: new ObjectId(id) },
-                    {
-                        $set: {
-                            adopted: true
-                        }
-                    }
+                    { _id: new ObjectId(req.params.id) },
+                    { $set: { adopted } }
                 );
-
                 res.send(result);
             } catch (error) {
-                console.error("Error marking pet as adopted:", error);
-
-                res.status(500).send({
-                    message: "Failed to update adoption status"
-                });
+                console.error("Error updating adoption status:", error);
+                res.status(500).send({ message: "Failed to update adoption status" });
             }
         });
 
@@ -262,6 +299,8 @@ async function run() {
             }
         });
 
+
+        // ---------------- adoptions ----------------
 
         //pet adoption form
         app.post("/adoptions", async (req, res) => {
@@ -401,6 +440,8 @@ async function run() {
         });
 
 
+        // ---------------- donation campaigns ----------------
+
         //get all donation pets data from db
         app.get('/donationPets', async (req, res) => {
 
@@ -424,65 +465,7 @@ async function run() {
             }
         })
 
-
-        app.post("/create-payment-intent", async (req, res) => {
-            try {
-                const { amount } = req.body;
-
-                const paymentIntent = await stripe.paymentIntents.create({
-                    amount: Math.round(amount * 100),
-                    currency: "usd",
-                    payment_method_types: ["card"],
-                });
-
-                res.send({
-                    clientSecret: paymentIntent.client_secret,
-                });
-
-            } catch (error) {
-                console.error(error);
-
-                res.status(500).send({
-                    message: "Failed to create payment intent",
-                });
-            }
-        });
-
-        app.post("/donations", async (req, res) => {
-            try {
-                const donation = req.body;
-
-                const result = await donationCollection.insertOne({
-                    campaignId: new ObjectId(donation.campaignId),
-                    petName: donation.petName,
-                    amount: donation.amount,
-                    transactionId: donation.transactionId,
-                    donatedAt: new Date(),
-                });
-
-                // Update campaign donatedAmount
-                await petCollection.updateOne(
-                    {
-                        _id: new ObjectId(donation.campaignId),
-                    },
-                    {
-                        $inc: {
-                            donatedAmount: donation.amount,
-                        },
-                    }
-                );
-
-                res.send(result);
-
-            } catch (error) {
-                console.error(error);
-
-                res.status(500).send({
-                    message: "Failed to save donation",
-                });
-            }
-        });
-
+        // create a campaign
         app.post('/donationPets', verifyToken, async (req, res) => {
             try {
                 const { petName, image, maximumDonation, lastDate,
@@ -567,6 +550,33 @@ async function run() {
             }
         });
 
+
+        // ---------------- payments & donations ----------------
+
+        app.post("/create-payment-intent", async (req, res) => {
+            try {
+                const { amount } = req.body;
+
+                const paymentIntent = await stripe.paymentIntents.create({
+                    amount: Math.round(amount * 100),
+                    currency: "usd",
+                    payment_method_types: ["card"],
+                });
+
+                res.send({
+                    clientSecret: paymentIntent.client_secret,
+                });
+
+            } catch (error) {
+                console.error(error);
+
+                res.status(500).send({
+                    message: "Failed to create payment intent",
+                });
+            }
+        });
+
+        // save a donation
         app.post("/donations", verifyToken, async (req, res) => {
             try {
                 const donation = req.body;
@@ -580,7 +590,8 @@ async function run() {
                     donatedAt: new Date(),
                 });
 
-                await donationPetsCollection.updateOne(   // was petCollection
+                // update the campaign total (donationPets, not pets)
+                await donationPetsCollection.updateOne(
                     { _id: new ObjectId(donation.campaignId) },
                     { $inc: { donatedAmount: Number(donation.amount) } }
                 );
@@ -592,6 +603,7 @@ async function run() {
             }
         });
 
+        // donations made by the logged-in user
         app.get("/my-donations", verifyToken, async (req, res) => {
             const result = await donationCollection
                 .find({ donorEmail: req.decoded.email })
@@ -600,44 +612,19 @@ async function run() {
             res.send(result);
         });
 
-        //show all pets admin
-        app.patch('/pets/:id/adopted', verifyToken, async (req, res) => {
-            try {
-                const adopted = req.body?.adopted !== false;
-                const result = await petCollection.updateOne(
-                    { _id: new ObjectId(req.params.id) },
-                    { $set: { adopted } }
-                );
-                res.send(result);
-            } catch (error) {
-                res.status(500).send({ message: "Failed to update adoption status" });
-            }
+        // all donations (admin only)
+        app.get('/donations', verifyToken, verifyAdmin, async (req, res) => {
+            const result = await donationCollection
+                .find()
+                .sort({ donatedAt: -1 })
+                .toArray();
+            res.send(result);
         });
 
-        // app.get("/donations/:campaignId", async (req, res) => {
 
-        //     const campaignId = req.params.campaignId;
-
-        //     const result = await donationCollection
-        //         .find({
-        //             campaignId: new ObjectId(campaignId),
-        //         })
-        //         .sort({
-        //             donatedAt: -1,
-        //         })
-        //         .toArray();
-
-        //     res.send(result);
-        // });
-
-
-
-        // Send a ping to confirm a successful connection
-        // await client.db("admin").command({ ping: 1 });
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
-        // Ensures that the client will close when you finish/error
-        // await client.close();
+        
     }
 }
 run().catch(console.dir);
