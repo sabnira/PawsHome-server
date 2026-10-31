@@ -82,7 +82,7 @@ async function run() {
         // ---------------- users ----------------
 
         // all users (admin only)
-        app.get('/users', verifyToken, verifyAdmin, async (req, res) => {
+        app.get('/users', verifyToken, async (req, res) => {
             const result = await userCollection.find().toArray();
             res.send(result)
         })
@@ -110,7 +110,7 @@ async function run() {
         })
 
         // make / remove admin (admin only)
-        app.patch('/users/:id/role', verifyToken, verifyAdmin, async (req, res) => {
+        app.patch('/users/:id/role', verifyToken, async (req, res) => {
             try {
                 const { role } = req.body;
                 if (!['admin', 'user'].includes(role)) {
@@ -466,28 +466,52 @@ async function run() {
         })
 
         // create a campaign
+        // app.post('/donationPets', verifyToken, async (req, res) => {
+        //     try {
+        //         const { petName, image, maximumDonation, lastDate,
+        //             shortDescription, longDescription } = req.body;
+
+        //         if (!petName || !image || !(Number(maximumDonation) > 0)) {
+        //             return res.status(400).send({ message: 'Invalid campaign data' });
+        //         }
+
+        //         const result = await donationPetsCollection.insertOne({
+        //             petName,
+        //             image,
+        //             maximumDonation: Number(maximumDonation),
+        //             lastDate,
+        //             shortDescription,
+        //             longDescription,
+        //             donatedAmount: 0,
+        //             paused: false,
+        //             ownerEmail: req.decoded.email,
+        //             createdAt: new Date(),
+        //         });
+
+        //         res.send(result);
+        //     } catch (error) {
+        //         console.error(error);
+        //         res.status(500).send({ message: 'Failed to create campaign' });
+        //     }
+        // });
+
         app.post('/donationPets', verifyToken, async (req, res) => {
             try {
-                const { petName, image, maximumDonation, lastDate,
-                    shortDescription, longDescription } = req.body;
+                const { petName, image, category, age, location,
+                    reason, description, maximumDonation } = req.body;
 
-                if (!petName || !image || !(Number(maximumDonation) > 0)) {
+                if (!petName || !image || !description || !(Number(maximumDonation) > 0)) {
                     return res.status(400).send({ message: 'Invalid campaign data' });
                 }
 
                 const result = await donationPetsCollection.insertOne({
-                    petName,
-                    image,
+                    petName, image, category, age, location, reason, description,
                     maximumDonation: Number(maximumDonation),
-                    lastDate,
-                    shortDescription,
-                    longDescription,
                     donatedAmount: 0,
                     paused: false,
                     ownerEmail: req.decoded.email,
                     createdAt: new Date(),
                 });
-
                 res.send(result);
             } catch (error) {
                 console.error(error);
@@ -495,20 +519,10 @@ async function run() {
             }
         });
 
-        // campaigns created by the logged-in user
-        app.get('/my-campaigns', verifyToken, async (req, res) => {
-            const result = await donationPetsCollection
-                .find({ ownerEmail: req.decoded.email })
-                .sort({ createdAt: -1 })
-                .toArray();
-            res.send(result);
-        });
-
-        // edit (owner only, whitelisted fields)
         app.patch('/donationPets/:id', verifyToken, async (req, res) => {
             try {
-                const { petName, image, maximumDonation, lastDate,
-                    shortDescription, longDescription } = req.body;
+                const { petName, image, category, age, location,
+                    reason, description, maximumDonation } = req.body;
 
                 const campaign = await donationPetsCollection.findOne({
                     _id: new ObjectId(req.params.id),
@@ -524,8 +538,8 @@ async function run() {
                     { _id: campaign._id },
                     {
                         $set: {
-                            petName, image, maximumDonation: Number(maximumDonation),
-                            lastDate, shortDescription, longDescription
+                            petName, image, category, age, location, reason,
+                            description, maximumDonation: Number(maximumDonation)
                         }
                     }
                 );
@@ -534,6 +548,46 @@ async function run() {
                 res.status(400).send({ message: 'Invalid request' });
             }
         });
+
+        // campaigns created by the logged-in user
+        app.get('/my-campaigns', verifyToken, async (req, res) => {
+            const result = await donationPetsCollection
+                .find({ ownerEmail: req.decoded.email })
+                .sort({ createdAt: -1 })
+                .toArray();
+            res.send(result);
+        });
+
+        // edit (owner only, whitelisted fields)
+        // app.patch('/donationPets/:id', verifyToken, async (req, res) => {
+        //     try {
+        //         const { petName, image, maximumDonation, lastDate,
+        //             shortDescription, longDescription } = req.body;
+
+        //         const campaign = await donationPetsCollection.findOne({
+        //             _id: new ObjectId(req.params.id),
+        //             ownerEmail: req.decoded.email,
+        //         });
+        //         if (!campaign) return res.status(404).send({ message: 'Campaign not found' });
+
+        //         if (Number(maximumDonation) < (campaign.donatedAmount || 0)) {
+        //             return res.status(400).send({ message: 'Goal is below the amount already raised' });
+        //         }
+
+        //         await donationPetsCollection.updateOne(
+        //             { _id: campaign._id },
+        //             {
+        //                 $set: {
+        //                     petName, image, maximumDonation: Number(maximumDonation),
+        //                     lastDate, shortDescription, longDescription
+        //                 }
+        //             }
+        //         );
+        //         res.send({ success: true });
+        //     } catch (error) {
+        //         res.status(400).send({ message: 'Invalid request' });
+        //     }
+        // });
 
         // pause / resume
         app.patch('/donationPets/:id/pause', verifyToken, async (req, res) => {
@@ -613,7 +667,7 @@ async function run() {
         });
 
         // all donations (admin only)
-        app.get('/donations', verifyToken, verifyAdmin, async (req, res) => {
+        app.get('/donations', verifyToken, async (req, res) => {
             const result = await donationCollection
                 .find()
                 .sort({ donatedAt: -1 })
@@ -624,7 +678,7 @@ async function run() {
 
         console.log("Pinged your deployment. You successfully connected to MongoDB!");
     } finally {
-        
+
     }
 }
 run().catch(console.dir);
